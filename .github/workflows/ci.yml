@@ -64,3 +64,16 @@ jobs:
           completed=$(psql -Atc "SELECT count(*) FROM bakery.simulation_runs WHERE status='COMPLETED'")
           echo "tables=$tables completed_runs=$completed"
           [ "$tables" = "34" ] && [ "$completed" = "2" ]
+
+  # Only main pushes an image; a PR's build is already covered by the test job above.
+  image:
+    needs: test
+    if: github.event_name != 'pull_request'
+    uses: maison-douce-bakery/platform-ci-workflows/.github/workflows/docker-build-push.yml@6dc059be0162c5aa69a15ef2beb931ab9cf391d4 # docker-build-push/v1.0.0
+    with:
+      ecr_repository: mdb/commerce-api
+      role_arn: ${{ vars.AWS_CI_PUSH_ROLE_ARN }}
+      aws_region: ${{ vars.AWS_REGION }}
+    secrets:
+      aws_access_key_id: ${{ secrets.AWS_CI_PUSH_ACCESS_KEY_ID }}
+      aws_secret_access_key: ${{ secrets.AWS_CI_PUSH_SECRET_ACCESS_KEY }}
