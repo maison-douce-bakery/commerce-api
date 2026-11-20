@@ -69,7 +69,7 @@ jobs:
   image:
     needs: test
     if: github.event_name != 'pull_request'
-    uses: maison-douce-bakery/platform-ci-workflows/.github/workflows/docker-build-push.yml@6dc059be0162c5aa69a15ef2beb931ab9cf391d4 # docker-build-push/v1.0.0
+    uses: maison-douce-bakery/platform-ci-workflows/.github/workflows/docker-build-push.yml@7beee702a116f27e5db8855c6082cf35cb2fb949 # docker-build-push/v1.1.0
     with:
       ecr_repository: mdb/commerce-api
       role_arn: ${{ vars.AWS_CI_PUSH_ROLE_ARN }}
