@@ -1,0 +1,4 @@
+psycopg[binary]==3.3.9
+holidays==0.109
+Faker==40.54.0
+certifi==2026.10.23

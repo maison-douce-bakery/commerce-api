@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Tests the image itself: it initializes an empty database and runs ticks against it.
+  test:
+    name: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:18.7-alpine@sha256:ff64c9e3bdf8e2120107d3559de8db314e8305f7e38c5105903c6295876738ff
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: build image
+        run: docker build -t commerce-api:ci .
+
+      # Same shape as RDS: the app role owns its database and is not a superuser.
+      - name: create role and database
+        env:
+          PGUSER: postgres
+          PGPASSWORD: ci
+        run: |
+          psql -v ON_ERROR_STOP=1 -c "CREATE ROLE commerce LOGIN PASSWORD 'ci'"
+          psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE bakery OWNER commerce"
+
+      - name: initialize and run twice
+        run: |
+          for run in first second; do
+            echo "=== $run run"
+            docker run --rm --network host -e PGHOST -e PGPORT \
+              -e PGDATABASE=bakery -e PGUSER=commerce -e PGPASSWORD=ci \
+              commerce-api:ci python run.py --once --orders-per-hour 600
+          done
+
+      - name: check results
+        env:
+          PGDATABASE: bakery
+          PGUSER: commerce
+          PGPASSWORD: ci
+        run: |
+          tables=$(psql -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='bakery' AND table_type='BASE TABLE'")
+          completed=$(psql -Atc "SELECT count(*) FROM bakery.simulation_runs WHERE status='COMPLETED'")
+          echo "tables=$tables completed_runs=$completed"
+          [ "$tables" = "34" ] && [ "$completed" = "2" ]
